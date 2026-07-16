@@ -2,7 +2,11 @@ package com.elms.elms.entity;
 
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "leave_request")
@@ -12,30 +16,42 @@ public class LeaveRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Leave Type is required")
     @Column(nullable = false)
     private String leaveType;
 
+    @NotNull(message = "Start Date is required")
     @Column(nullable = false)
     private LocalDate startDate;
 
+    @NotNull(message = "End Date is required")
     @Column(nullable = false)
     private LocalDate endDate;
 
+    @NotBlank(message = "Reason is required")
+    @Column(nullable = false)
     private String reason;
 
     @Column(nullable = false)
-    private String status; // PENDING, APPROVED, REJECTED
+    private String status;
 
-    @ManyToOne
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
-    // Constructors
+    // Default Constructor
     public LeaveRequest() {
     }
 
-    public LeaveRequest(String leaveType, LocalDate startDate, LocalDate endDate,
-                        String reason, String status, Employee employee) {
+    // Parameterized Constructor
+    public LeaveRequest(String leaveType,
+                        LocalDate startDate,
+                        LocalDate endDate,
+                        String reason,
+                        String status,
+                        Employee employee) {
+
         this.leaveType = leaveType;
         this.startDate = startDate;
         this.endDate = endDate;
@@ -44,13 +60,10 @@ public class LeaveRequest {
         this.employee = employee;
     }
 
-    // Getters and Setters
+    // Getters & Setters
+
     public Long getId() {
         return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getLeaveType() {

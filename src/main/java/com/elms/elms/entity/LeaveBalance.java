@@ -1,5 +1,7 @@
 package com.elms.elms.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -10,18 +12,22 @@ public class LeaveBalance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private int totalLeaves;
 
+    @Column(nullable = false)
     private int remainingLeaves;
 
+    @JsonIgnore
     @OneToOne
-    @JoinColumn(name = "employee_id")
+    @JoinColumn(name = "employee_id", nullable = false, unique = true)
     private Employee employee;
 
-    // Constructors
+    // Default Constructor
     public LeaveBalance() {
     }
 
+    // Parameterized Constructor
     public LeaveBalance(int totalLeaves, int remainingLeaves, Employee employee) {
         this.totalLeaves = totalLeaves;
         this.remainingLeaves = remainingLeaves;
@@ -29,12 +35,9 @@ public class LeaveBalance {
     }
 
     // Getters and Setters
+
     public Long getId() {
         return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public int getTotalLeaves() {
