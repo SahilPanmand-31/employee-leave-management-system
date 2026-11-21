@@ -2,34 +2,29 @@ package com.elms.elms.service;
 
 import java.util.List;
 
-import com.elms.elms.entity.LeaveRequest;
+import com.elms.elms.dto.LeaveApplyRequest;
+import com.elms.elms.dto.LeaveResponse;
 
 public interface LeaveService {
 
     // Employee applies for leave
-    LeaveRequest applyLeave(Long employeeId, LeaveRequest leaveRequest);
+    LeaveResponse applyLeave(Long employeeId, LeaveApplyRequest request);
 
     // Get all pending leave requests
-    List<LeaveRequest> getPendingLeaves();
+    List<LeaveResponse> getPendingLeaves();
 
-    // Approve leave
-    LeaveRequest approveLeave(Long leaveId);
+    // Approve leave (deducts the days from the leave balance)
+    LeaveResponse approveLeave(Long leaveId);
 
     // Reject leave
-    LeaveRequest rejectLeave(Long leaveId);
+    LeaveResponse rejectLeave(Long leaveId);
 
     // Get leave by ID
-    LeaveRequest getLeaveById(Long leaveId);
+    LeaveResponse getLeaveById(Long leaveId);
 
-    // Get all leave requests of an employee
-    List<LeaveRequest> getLeavesByEmployee(Long employeeId);
+    // Leave history of an employee
+    List<LeaveResponse> getLeaveHistory(Long employeeId);
 
-    // Get approved leaves of an employee
-    List<LeaveRequest> getApprovedLeaves(Long employeeId);
-
-    // Get rejected leaves of an employee
-    List<LeaveRequest> getRejectedLeaves(Long employeeId);
-
-    // Cancel leave request
-    void cancelLeave(Long leaveId);
+    // Cancel a pending leave request
+    LeaveResponse cancelLeave(Long leaveId);
 }

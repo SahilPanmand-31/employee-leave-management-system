@@ -1,15 +1,19 @@
 package com.elms.elms.service;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.elms.elms.dto.LeaveApplyRequest;
+import com.elms.elms.dto.LeaveResponse;
 import com.elms.elms.entity.Employee;
 import com.elms.elms.entity.LeaveBalance;
 import com.elms.elms.entity.LeaveRequest;
+import com.elms.elms.entity.LeaveStatus;
+import com.elms.elms.exception.InvalidLeaveRequestException;
+import com.elms.elms.exception.ResourceNotFoundException;
 import com.elms.elms.repository.EmployeeRepository;
 import com.elms.elms.repository.LeaveBalanceRepository;
 import com.elms.elms.repository.LeaveRequestRepository;
@@ -17,142 +21,163 @@ import com.elms.elms.repository.LeaveRequestRepository;
 @Service
 public class LeaveServiceImpl implements LeaveService {
 
-    @Autowired
-    private LeaveRequestRepository leaveRequestRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final EmployeeRepository employeeRepository;
+    private final LeaveBalanceRepository leaveBalanceRepository;
 
-    @Autowired
-    private EmployeeRepository employeeRepository;
-
-    @Autowired
-    private LeaveBalanceRepository leaveBalanceRepository;
+    public LeaveServiceImpl(LeaveRequestRepository leaveRequestRepository,
+                            EmployeeRepository employeeRepository,
+                            LeaveBalanceRepository leaveBalanceRepository) {
+        this.leaveRequestRepository = leaveRequestRepository;
+        this.employeeRepository = employeeRepository;
+        this.leaveBalanceRepository = leaveBalanceRepository;
+    }
 
     // Apply Leave
     @Override
-    public LeaveRequest applyLeave(Long employeeId, LeaveRequest leaveRequest) {
+    @Transactional
+    public LeaveResponse applyLeave(Long employeeId, LeaveApplyRequest request) {
 
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee Not Found"));
+        Employee employee = findEmployee(employeeId);
 
-        if (leaveRequest.getStartDate().isAfter(leaveRequest.getEndDate())) {
-            throw new RuntimeException("Start Date cannot be after End Date");
+        // Rule 1: end date must be on or after start date
+        if (request.endDate().isBefore(request.startDate())) {
+            throw new InvalidLeaveRequestException("End Date cannot be before Start Date");
         }
 
-        if (leaveRequest.getStartDate().isBefore(LocalDate.now())) {
-            throw new RuntimeException("Cannot apply leave for past dates");
+        // Rule 2: no leave in the past (also checked by @FutureOrPresent on the DTO)
+        if (request.startDate().isBefore(LocalDate.now())) {
+            throw new InvalidLeaveRequestException("Cannot apply leave for past dates");
         }
 
-        boolean alreadyApplied = leaveRequestRepository
-                .existsByEmployeeAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                        employee,
-                        leaveRequest.getEndDate(),
-                        leaveRequest.getStartDate());
-
-        if (alreadyApplied) {
-            throw new RuntimeException("Leave already exists for selected dates");
+        // Rule 3: no overlap with another pending/approved leave of the same employee
+        if (leaveRequestRepository.existsOverlappingLeave(employeeId, request.startDate(), request.endDate())) {
+            throw new InvalidLeaveRequestException("Leave already exists for selected dates");
         }
 
-        leaveRequest.setEmployee(employee);
-        leaveRequest.setStatus("PENDING");
+        // Rule 4: the employee must have enough leave days left
+        long requestedDays = LeaveResponse.countDays(request.startDate(), request.endDate());
+        if (requestedDays > findBalance(employee).getRemainingLeaves()) {
+            throw new InvalidLeaveRequestException("Insufficient Leave Balance");
+        }
 
-        return leaveRequestRepository.save(leaveRequest);
+        LeaveRequest leave = new LeaveRequest(
+                request.leaveType(),
+                request.startDate(),
+                request.endDate(),
+                request.reason(),
+                LeaveStatus.PENDING,
+                employee);
+
+        return LeaveResponse.from(leaveRequestRepository.save(leave));
     }
 
     // Pending Leaves
     @Override
-    public List<LeaveRequest> getPendingLeaves() {
-        return leaveRequestRepository.findByStatus("PENDING");
+    @Transactional(readOnly = true)
+    public List<LeaveResponse> getPendingLeaves() {
+        return leaveRequestRepository.findByStatus(LeaveStatus.PENDING).stream()
+                .map(LeaveResponse::from)
+                .toList();
     }
 
     // Approve Leave
     @Override
-    public LeaveRequest approveLeave(Long leaveId) {
+    @Transactional
+    public LeaveResponse approveLeave(Long leaveId) {
 
-        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave Request Not Found"));
+        LeaveRequest leave = findLeave(leaveId);
+        ensurePending(leave);
 
-        LeaveBalance balance = leaveBalanceRepository
-                .findByEmployee(leave.getEmployee())
-                .orElseThrow(() -> new RuntimeException("Leave Balance Not Found"));
+        LeaveBalance balance = findBalance(leave.getEmployee());
 
-        long leaveDays = ChronoUnit.DAYS.between(
-                leave.getStartDate(),
-                leave.getEndDate()) + 1;
+        long leaveDays = LeaveResponse.countDays(leave.getStartDate(), leave.getEndDate());
 
         if (balance.getRemainingLeaves() < leaveDays) {
-            throw new RuntimeException("Insufficient Leave Balance");
+            throw new InvalidLeaveRequestException("Insufficient Leave Balance");
         }
 
-        balance.setRemainingLeaves(
-                balance.getRemainingLeaves() - (int) leaveDays);
-
+        // Deduct the approved days from the balance
+        balance.setRemainingLeaves(balance.getRemainingLeaves() - (int) leaveDays);
         leaveBalanceRepository.save(balance);
 
-        leave.setStatus("APPROVED");
+        leave.setStatus(LeaveStatus.APPROVED);
 
-        return leaveRequestRepository.save(leave);
+        return LeaveResponse.from(leaveRequestRepository.save(leave));
     }
 
     // Reject Leave
     @Override
-    public LeaveRequest rejectLeave(Long leaveId) {
+    @Transactional
+    public LeaveResponse rejectLeave(Long leaveId) {
 
-        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave Request Not Found"));
+        LeaveRequest leave = findLeave(leaveId);
+        ensurePending(leave);
 
-        leave.setStatus("REJECTED");
+        leave.setStatus(LeaveStatus.REJECTED);
 
-        return leaveRequestRepository.save(leave);
+        return LeaveResponse.from(leaveRequestRepository.save(leave));
     }
 
     // Get Leave By Id
     @Override
-    public LeaveRequest getLeaveById(Long leaveId) {
-
-        return leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave Request Not Found"));
+    @Transactional(readOnly = true)
+    public LeaveResponse getLeaveById(Long leaveId) {
+        return LeaveResponse.from(findLeave(leaveId));
     }
 
-    // Get Employee Leave History
+    // Leave History of an Employee
     @Override
-    public List<LeaveRequest> getLeavesByEmployee(Long employeeId) {
+    @Transactional(readOnly = true)
+    public List<LeaveResponse> getLeaveHistory(Long employeeId) {
 
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee Not Found"));
+        Employee employee = findEmployee(employeeId);
 
-        return leaveRequestRepository.findByEmployee(employee);
-    }
-
-    // Approved Leaves
-    @Override
-    public List<LeaveRequest> getApprovedLeaves(Long employeeId) {
-
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee Not Found"));
-
-        return leaveRequestRepository.findByEmployeeAndStatus(employee, "APPROVED");
-    }
-
-    // Rejected Leaves
-    @Override
-    public List<LeaveRequest> getRejectedLeaves(Long employeeId) {
-
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee Not Found"));
-
-        return leaveRequestRepository.findByEmployeeAndStatus(employee, "REJECTED");
+        return leaveRequestRepository.findByEmployeeOrderByStartDateDesc(employee).stream()
+                .map(LeaveResponse::from)
+                .toList();
     }
 
     // Cancel Leave
     @Override
-    public void cancelLeave(Long leaveId) {
+    @Transactional
+    public LeaveResponse cancelLeave(Long leaveId) {
 
-        LeaveRequest leave = leaveRequestRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave Request Not Found"));
+        LeaveRequest leave = findLeave(leaveId);
 
-        if (!leave.getStatus().equalsIgnoreCase("PENDING")) {
-            throw new RuntimeException("Only Pending Leave can be cancelled");
+        if (leave.getStatus() != LeaveStatus.PENDING) {
+            throw new InvalidLeaveRequestException("Only Pending Leave can be cancelled");
         }
 
-        leaveRequestRepository.delete(leave);
+        // We keep the record for history and only change its status
+        leave.setStatus(LeaveStatus.CANCELLED);
+
+        return LeaveResponse.from(leaveRequestRepository.save(leave));
+    }
+
+    // ---------- helper methods ----------
+
+    // A leave can be approved or rejected only once
+    private void ensurePending(LeaveRequest leave) {
+        if (leave.getStatus() != LeaveStatus.PENDING) {
+            throw new InvalidLeaveRequestException(
+                    "Leave is already " + leave.getStatus() + ", only PENDING leave can be processed");
+        }
+    }
+
+    private Employee findEmployee(Long employeeId) {
+        return employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + employeeId));
+    }
+
+    private LeaveRequest findLeave(Long leaveId) {
+        return leaveRequestRepository.findById(leaveId)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found with id: " + leaveId));
+    }
+
+    private LeaveBalance findBalance(Employee employee) {
+        return leaveBalanceRepository.findByEmployee(employee)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Leave balance not found for employee id: " + employee.getId()));
     }
 }

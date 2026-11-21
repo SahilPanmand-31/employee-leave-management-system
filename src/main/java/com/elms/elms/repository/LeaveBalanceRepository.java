@@ -13,8 +13,4 @@ public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long
 
     Optional<LeaveBalance> findByEmployee(Employee employee);
 
-    boolean existsByEmployee(Employee employee);
-
-    void deleteByEmployee(Employee employee);
-
 }

@@ -2,66 +2,76 @@ package com.elms.elms.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import com.elms.elms.entity.LeaveRequest;
+import com.elms.elms.dto.LeaveApplyRequest;
+import com.elms.elms.dto.LeaveResponse;
 import com.elms.elms.service.LeaveService;
 
 import jakarta.validation.Valid;
 
-
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
-
-
 @RestController
 @RequestMapping("/leaves")
-@Validated
 public class LeaveController {
 
-    @Autowired
-    private LeaveService leaveService;
+    private final LeaveService leaveService;
+
+    public LeaveController(LeaveService leaveService) {
+        this.leaveService = leaveService;
+    }
 
     // Apply Leave
     @PostMapping("/apply/{employeeId}")
-    public ResponseEntity<LeaveRequest> applyLeave(
+    public ResponseEntity<LeaveResponse> applyLeave(
             @PathVariable Long employeeId,
-            @Valid @RequestBody LeaveRequest leaveRequest) {
+            @Valid @RequestBody LeaveApplyRequest request) {
 
-        LeaveRequest savedLeave = leaveService.applyLeave(employeeId, leaveRequest);
+        LeaveResponse savedLeave = leaveService.applyLeave(employeeId, request);
 
         return new ResponseEntity<>(savedLeave, HttpStatus.CREATED);
     }
 
-    // Get All Pending Leaves
+    // Get All Pending Leaves (MANAGER only)
     @GetMapping("/pending")
-    public ResponseEntity<List<LeaveRequest>> getPendingLeaves() {
+    public ResponseEntity<List<LeaveResponse>> getPendingLeaves() {
 
-        List<LeaveRequest> pendingLeaves = leaveService.getPendingLeaves();
-
-        return ResponseEntity.ok(pendingLeaves);
+        return ResponseEntity.ok(leaveService.getPendingLeaves());
     }
 
-    // Approve Leave
+    // Leave History of an Employee (newest first)
+    @GetMapping("/history/{employeeId}")
+    public ResponseEntity<List<LeaveResponse>> getLeaveHistory(@PathVariable Long employeeId) {
+
+        return ResponseEntity.ok(leaveService.getLeaveHistory(employeeId));
+    }
+
+    // Get Leave By Id
+    @GetMapping("/{leaveId}")
+    public ResponseEntity<LeaveResponse> getLeave(@PathVariable Long leaveId) {
+
+        return ResponseEntity.ok(leaveService.getLeaveById(leaveId));
+    }
+
+    // Approve Leave (MANAGER only)
     @PutMapping("/approve/{leaveId}")
-    public ResponseEntity<LeaveRequest> approveLeave(@PathVariable Long leaveId) {
+    public ResponseEntity<LeaveResponse> approveLeave(@PathVariable Long leaveId) {
 
-        LeaveRequest approvedLeave = leaveService.approveLeave(leaveId);
-
-        return ResponseEntity.ok(approvedLeave);
+        return ResponseEntity.ok(leaveService.approveLeave(leaveId));
     }
 
-    // Reject Leave
+    // Reject Leave (MANAGER only)
     @PutMapping("/reject/{leaveId}")
-    public ResponseEntity<LeaveRequest> rejectLeave(@PathVariable Long leaveId) {
+    public ResponseEntity<LeaveResponse> rejectLeave(@PathVariable Long leaveId) {
 
-        LeaveRequest rejectedLeave = leaveService.rejectLeave(leaveId);
+        return ResponseEntity.ok(leaveService.rejectLeave(leaveId));
+    }
 
-        return ResponseEntity.ok(rejectedLeave);
+    // Cancel a Pending Leave
+    @PutMapping("/cancel/{leaveId}")
+    public ResponseEntity<LeaveResponse> cancelLeave(@PathVariable Long leaveId) {
+
+        return ResponseEntity.ok(leaveService.cancelLeave(leaveId));
     }
 }

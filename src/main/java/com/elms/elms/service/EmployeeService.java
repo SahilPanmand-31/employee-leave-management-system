@@ -2,29 +2,30 @@ package com.elms.elms.service;
 
 import java.util.List;
 
-import com.elms.elms.entity.Employee;
+import com.elms.elms.dto.EmployeeRequest;
+import com.elms.elms.dto.EmployeeResponse;
+import com.elms.elms.dto.LeaveBalanceResponse;
 
 public interface EmployeeService {
 
-    // Create Employee
-    Employee createEmployee(Employee employee);
+    // Create Employee (also creates a leave balance of 20 days)
+    EmployeeResponse createEmployee(EmployeeRequest request);
 
     // Get Employee By Id
-    Employee getEmployeeById(Long id);
+    EmployeeResponse getEmployeeById(Long id);
 
     // Get All Employees
-    List<Employee> getAllEmployees();
+    List<EmployeeResponse> getAllEmployees();
 
     // Update Employee
-    Employee updateEmployee(Long id, Employee employee);
+    EmployeeResponse updateEmployee(Long id, EmployeeRequest request);
 
-    // Delete Employee
+    // Delete Employee (its leave balance and leave requests are removed too)
     void deleteEmployee(Long id);
 
-    // Search Employee By Name
-    List<Employee> searchEmployeeByName(String name);
+    // Search Employees by name and/or department
+    List<EmployeeResponse> searchEmployees(String name, String department);
 
-    // Get Employees By Department
-    List<Employee> getEmployeesByDepartment(String department);
-
+    // Leave balance of an employee
+    LeaveBalanceResponse getLeaveBalance(Long employeeId);
 }

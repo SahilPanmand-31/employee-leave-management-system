@@ -10,19 +10,13 @@ import com.elms.elms.entity.Employee;
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
-    // Find employee by email
-    Employee findByEmail(String email);
-
-    // Find employee by exact name
-    Employee findByName(String name);
-
-    // Search employees by name
-    List<Employee> findByNameContainingIgnoreCase(String name);
-
-    // Find all employees in a department
-    List<Employee> findByDepartment(String department);
-
-    // Check if email already exists
+    // Check if email already exists (used on create)
     boolean existsByEmail(String email);
 
+    // Check if ANOTHER employee already uses this email (used on update)
+    boolean existsByEmailAndIdNot(String email, Long id);
+
+    // Search by part of the name AND part of the department, ignoring case.
+    // Passing "" for a parameter means "match everything" for that field.
+    List<Employee> findByNameContainingIgnoreCaseAndDepartmentContainingIgnoreCase(String name, String department);
 }

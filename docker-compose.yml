@@ -1,0 +1,40 @@
+# Runs the API and a PostgreSQL database together:
+#   cp .env.example .env   (then edit the values)
+#   docker compose up --build
+# Values come from the .env file; the defaults after ":-" are only for local testing.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: elms-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-employee_db}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-employee_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: elms-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-employee_db}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me}
+      JWT_SECRET: ${JWT_SECRET:-change-me-this-is-only-a-local-dev-secret-key-1234567890}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:

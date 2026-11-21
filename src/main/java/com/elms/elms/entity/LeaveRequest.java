@@ -5,8 +5,6 @@ import java.time.LocalDate;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "leave_request")
@@ -16,24 +14,21 @@ public class LeaveRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Leave Type is required")
     @Column(nullable = false)
     private String leaveType;
 
-    @NotNull(message = "Start Date is required")
     @Column(nullable = false)
     private LocalDate startDate;
 
-    @NotNull(message = "End Date is required")
     @Column(nullable = false)
     private LocalDate endDate;
 
-    @NotBlank(message = "Reason is required")
     @Column(nullable = false)
     private String reason;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private LeaveStatus status;
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,7 +44,7 @@ public class LeaveRequest {
                         LocalDate startDate,
                         LocalDate endDate,
                         String reason,
-                        String status,
+                        LeaveStatus status,
                         Employee employee) {
 
         this.leaveType = leaveType;
@@ -61,6 +56,10 @@ public class LeaveRequest {
     }
 
     // Getters & Setters
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     public Long getId() {
         return id;
@@ -98,11 +97,11 @@ public class LeaveRequest {
         this.reason = reason;
     }
 
-    public String getStatus() {
+    public LeaveStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(LeaveStatus status) {
         this.status = status;
     }
 

@@ -2,33 +2,36 @@ package com.elms.elms.repository;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.elms.elms.entity.Employee;
 import com.elms.elms.entity.LeaveRequest;
+import com.elms.elms.entity.LeaveStatus;
 
 @Repository
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
 
-    // Get all pending leave requests
-    List<LeaveRequest> findByStatus(String status);
+    // All leave requests with a given status (e.g. PENDING)
+    List<LeaveRequest> findByStatus(LeaveStatus status);
 
-    // Get all leave requests of an employee
-    List<LeaveRequest> findByEmployee(Employee employee);
+    // Full leave history of an employee, newest first
+    List<LeaveRequest> findByEmployeeOrderByStartDateDesc(Employee employee);
 
-    // Get leave requests of an employee by status
-    List<LeaveRequest> findByEmployeeAndStatus(Employee employee, String status);
-
-    // Find leave by ID
-    Optional<LeaveRequest> findById(Long id);
-
-    // Check overlapping leave request
-    boolean existsByEmployeeAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-            Employee employee,
-            LocalDate endDate,
-            LocalDate startDate);
-
+    // Overlap check: two date ranges overlap when
+    // existing.start <= new.end AND existing.end >= new.start.
+    // Only PENDING and APPROVED leaves count; rejected/cancelled dates can be applied for again.
+    @Query("""
+            SELECT COUNT(l) > 0 FROM LeaveRequest l
+            WHERE l.employee.id = :employeeId
+              AND l.status IN (com.elms.elms.entity.LeaveStatus.PENDING, com.elms.elms.entity.LeaveStatus.APPROVED)
+              AND l.startDate <= :endDate
+              AND l.endDate >= :startDate
+            """)
+    boolean existsOverlappingLeave(@Param("employeeId") Long employeeId,
+                                   @Param("startDate") LocalDate startDate,
+                                   @Param("endDate") LocalDate endDate);
 }

@@ -3,30 +3,25 @@ package com.elms.elms.entity;
 import java.util.List;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 
 @Entity
 @Table(name = "employee")
+// Validation lives in the request DTOs (dto package), the entity only maps the table.
 public class Employee {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Employee name is required")
     @Column(nullable = false)
     private String name;
 
-    @Email(message = "Enter a valid email")
-    @NotBlank(message = "Email is required")
     @Column(nullable = false, unique = true)
     private String email;
 
-    @NotBlank(message = "Department is required")
     private String department;
 
-    @NotBlank(message = "Role is required")
+    // Job designation, e.g. "Java Developer" (not the security role)
     private String role;
 
     // One Employee -> One Leave Balance
